@@ -7,15 +7,20 @@ import base64
 
 from bs4 import BeautifulSoup
 
+from config import API_KEY
+
 lockfile_path = ""
 gamedir = ""
 host, port = "https://127.0.0.1", ""
-lobby_endpoint = "lol-lobby/v2/lobby"
+lobby_endpoint = "lol-champ-select/v1/session"
 password = ""
 headers = {}
 url = ""
 stats_url = "https://lolprofile.net/summoner/"
 region = ""
+
+class GameNotActiveException(Exception):
+    pass
 
 def main(args):
     global stats_url
@@ -43,7 +48,8 @@ def main(args):
     url = f"{host}:{port}/{lobby_endpoint}"
     r = requests.get(url, headers=headers, verify="./riotgames.pem")
     res = r.json()
-    players = res.get("members", None)
+    player_ids = [player["puuid"] for player in res.get("myTeam", None)]
+    sumNames = []
     with open(gamedir + "\\Config\\LeagueClientSettings.yaml", "rb") as f:
         lines = f.readlines()
         for line in lines:
@@ -51,8 +57,9 @@ def main(args):
                 tmp = eval("{"+found+"}")
                 region = tmp[""]
                 stats_url += region.lower() +"/"
-    sumNames = [player["summonerName"] for player in players]
-    sumNames = []
+    for player_id in player_ids:
+        res = requests.get(f"https://{region}1.api.riotgames.com/lol/summoner/v1/summoners/by-puuid/{player_id}?api_key={API_KEY}")
+        sumNames.append(res.json()["name"])
     winRates = []
     for sumName in sumNames:
         r = requests.get(stats_url + sumName)
@@ -62,8 +69,10 @@ def main(args):
         wrate = wrate.find("div")
         wrate = str(wrate)[5:-7]
         winRates.append(float(wrate))
-
+    if len(winRates) == 0:
+        raise GameNotActiveException("There is no active game!")
     print("Likely to win!" if (sum(winRates)/len(winRates)) > 50 else "Likely to lose!")
+    print("Average win rate:", sum(winRates)/len(winRates))
 
 
 if __name__ == "__main__":
