@@ -23,6 +23,9 @@ lobby_found = False
 class ClientException(Exception):
     pass
 
+class GameDirException(Exception):
+    pass
+
 def setup(args):
     global stats_url, port, host, url, headers, region, lobby_endpoint, summoner_endpoint, ready_check_endpoint, gamedir
     if len(args) > 0:
@@ -35,8 +38,7 @@ def setup(args):
             gamedir = f.readline()
             lockfile_path = gamedir + "\\lockfile"
     except FileNotFoundError:
-        print("Please run the script with the game directory as argument!")
-        return
+        raise GameDirException("Please run the script with the game directory as argument!")
     try:
         with open(lockfile_path, "rb") as f:
             tmp = f.readline().decode().split(":")
