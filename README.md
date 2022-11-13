@@ -1,5 +1,7 @@
 ## SaveMyTime
 
+Script that auto accepts ready checks and pulls average win rate of your team.
+
 ```
 $ ./saveme.py [GAME_DIR]
 ```
