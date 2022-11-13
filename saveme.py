@@ -20,7 +20,10 @@ stats_url = "https://lolprofile.net/summoner/"
 region = ""
 lobby_found = False
 
-def main(args):
+class ClientException(Exception):
+    pass
+
+def setup(args):
     global stats_url, port, host, url, headers, region, lobby_endpoint, summoner_endpoint, ready_check_endpoint, gamedir
     if len(args) > 0:
         with open("./path.txt", "w+") as f:
@@ -45,8 +48,7 @@ def main(args):
                 "User-Agent": "Mozilla/5.0 (X11; CrOS x86_64 12871.102.0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/81.0.4044.141 Safari/537.36"
             }
     except FileNotFoundError:
-        print("Client has not been launched or the game directory is wrong!")
-        return
+        raise ClientException("Client has not been launched or the game directory is wrong!")
     with open(gamedir + "\\Config\\LeagueClientSettings.yaml", "rb") as f:
         lines = f.readlines()
         for line in lines:
@@ -57,39 +59,53 @@ def main(args):
 
 def listen_to_champ_select():
     global stats_url, port, host, url, headers, region, lobby_endpoint, summoner_endpoint, ready_check_endpoint, gamedir, lobby_found
-    url = f"{host}:{port}/{lobby_endpoint}"
-    r = requests.get(url, headers=headers, verify="./riotgames.pem")
-    res = r.json()
-    if res.get("myTeam", None) is None:
-        return
-    player_ids = [player["summonerId"] for player in res.get("myTeam", None)]
-    sumNames = []
-    for player_id in player_ids:
-        url = f"{host}:{port}/{summoner_endpoint}/{player_id}"
-        res = requests.get(url, headers=headers, verify="./riotgames.pem")
-        sumNames.append(res.json()["displayName"])
-    winRates = []
-    for sumName in sumNames:
-        try:
+    try:
+        url = f"{host}:{port}/{lobby_endpoint}"
+        r = requests.get(url, headers=headers, verify="./riotgames.pem")
+        res = r.json()
+        if res.get("myTeam", None) is None:
+            return
+        player_ids = [player["summonerId"] for player in res.get("myTeam", None)]
+        sumNames = []
+        for player_id in player_ids:
+            url = f"{host}:{port}/{summoner_endpoint}/{player_id}"
+            res = requests.get(url, headers=headers, verify="./riotgames.pem")
+            sumNames.append(res.json()["displayName"])
+        winRates = []
+        for sumName in sumNames:
             r = requests.get(stats_url + sumName)
             page = r.content
             soup = BeautifulSoup(page.decode("utf-8"), "html5lib")
-            wrate = soup.find_all("div", "tooltip block s-wrb")[0]
+            divs = soup.find_all("div", "tooltip block s-wrb")
+            if len(divs) == 0:
+                print(f"Summoner profile could not be accessed for summoner: {sumName}!")
+                continue
+            wrate = divs[0]
             wrate = wrate.find("div")
             wrate = str(wrate)[5:-7]
             winRates.append(float(wrate))
-        except Exception:
-            print(f"Summoner profile could not be accessed for summoner: {sumName}!")
-            continue
-    print("Likely to win!" if (sum(winRates)/len(winRates)) > 50 else "Likely to lose!")
-    print("Average win rate:", sum(winRates)/len(winRates))
-    lobby_found = True
+        print("Likely to win!" if (sum(winRates)/len(winRates)) > 50 else "Likely to lose!")
+        print("Average win rate:", sum(winRates)/len(winRates))
+        lobby_found = True
+    except Exception:
+        lobby_found = False
 
 def listen_to_ready_check():
-    requests.post(f"{host}:{port}/{ready_check_endpoint}", headers=headers, verify="./riotgames.pem")
+    global lobby_found
+    try:
+        res = requests.post(f"{host}:{port}/{ready_check_endpoint}", headers=headers, verify="./riotgames.pem")
+        if res.status_code == 204:
+            lobby_found = False
+            return
+        res = res.json()
+        if res["httpStatus"] in (404, 500):
+            lobby_found = False
+    except Exception:
+        lobby_found = False
+
 
 if __name__ == "__main__":
-    main(sys.argv[1:])
+    setup(sys.argv[1:])
     while True:
         if not lobby_found:
             listen_to_champ_select()
