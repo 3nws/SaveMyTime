@@ -112,4 +112,4 @@ if __name__ == "__main__":
         if not lobby_found:
             listen_to_champ_select()
         listen_to_ready_check()
-        time.sleep(.5)
+        time.sleep(2)
