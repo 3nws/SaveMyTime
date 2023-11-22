@@ -26,7 +26,7 @@ class ClientException(Exception):
 class GameDirException(Exception):
     pass
 
-def setup(args):
+def setup(args: list[str]):
     global stats_url, port, host, url, headers, region, lobby_endpoint, summoner_endpoint, ready_check_endpoint, gamedir
     if len(args) > 0:
         with open("./path.txt", "w+") as f:
@@ -68,12 +68,12 @@ def listen_to_champ_select():
         if res.get("myTeam", None) is None:
             return
         player_ids = [player["summonerId"] for player in res.get("myTeam", None)]
-        sumNames = []
+        sumNames: list[str] = []
         for player_id in player_ids:
             url = f"{host}:{port}/{summoner_endpoint}/{player_id}"
             res = requests.get(url, headers=headers, verify="./riotgames.pem")
             sumNames.append(res.json()["displayName"])
-        winRates = []
+        winRates: list[float] = []
         for sumName in sumNames:
             r = requests.get(stats_url + sumName)
             page = r.content
